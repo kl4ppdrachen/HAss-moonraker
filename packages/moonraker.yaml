@@ -1,0 +1,243 @@
+rest_command:
+  moonraker_emergency_stop:
+    url: "http://YOUR_IP:7125/printer/emergency_stop"
+    method: post
+  moonraker_firmware_restart:
+    url: "http://YOUR_IP:7125/printer/firmware_restart"
+    method: post
+  moonraker_cancel:
+    url: "http://YOUR_IP:7125/printer/print/cancel"
+    method: post
+  moonraker_pause:
+    url: "http://YOUR_IP:7125/printer/print/pause"
+    method: post
+  moonraker_resume:
+    url: "http://YOUR_IP:7125/printer/print/resume"
+    method: post
+  moonraker_shutdown:
+    url: "http://YOUR_IP:7125/machine/shutdown"
+    method: post
+
+sensor:
+  - platform: rest
+    name: moonraker_sensor
+    resource: "http://YOUR_IP:7125/printer/objects/query?heater_bed&extruder&print_stats&toolhead&display_status&gcode_move"
+    json_attributes_path: "$.result.status"
+    json_attributes:
+      - heater_bed
+      - extruder
+      - print_stats
+      - display_status
+      - gcode_move
+    value_template: "OK"
+    force_update: true
+    scan_interval: 31540000000
+
+  - platform: rest
+    name: moonraker_info
+    resource_template: "http://YOUR_IP:7125/printer/info"
+    json_attributes_path: "$.result"
+    json_attributes:
+      - state_message
+      - state
+    value_template: "OK"
+    force_update: true
+    scan_interval: 31540000000
+
+  - platform: rest
+    name: moonraker_print_data
+    resource_template: "http://YOUR_IP:7125/server/files/metadata?filename={{ states(('sensor.moonraker_current_print')) | string }}"
+    json_attributes_path: "$.result"
+    json_attributes:
+      - layer_count
+      - object_height
+      - layer_height
+    value_template: "OK"
+    force_update: true
+    scan_interval: 31540000000
+
+  - platform: template
+    sensors:
+      moonraker_hotend_target:
+        friendly_name: "Hotend Target"
+        value_template: '{{ states.sensor.moonraker_sensor.attributes["extruder"]["target"]  | float | round(1) }}'
+        device_class: temperature
+        unit_of_measurement: "°C"
+        icon_template: mdi:thermometer
+      moonraker_hotend_actual:
+        friendly_name: "Hotend Actual"
+        value_template: '{{ states.sensor.moonraker_sensor.attributes["extruder"]["temperature"]  | float | round(1) }}'
+        device_class: temperature
+        unit_of_measurement: "°C"
+        icon_template: mdi:thermometer
+      moonraker_hotend_power:
+        friendly_name: "Hotend Power"
+        value_template: '{{ ((states.sensor.moonraker_sensor.attributes["extruder"]["power"]  | float) * 100) | round(0) }}'
+        unit_of_measurement: "%"
+        icon_template: mdi:flash
+      moonraker_bed_target:
+        friendly_name: "Bed Target"
+        value_template: '{{ states.sensor.moonraker_sensor.attributes["heater_bed"]["target"]  | float | round(1) }}'
+        device_class: temperature
+        unit_of_measurement: "°C"
+        icon_template: mdi:thermometer
+      moonraker_bed_actual:
+        friendly_name: "Bed Actual"
+        value_template: '{{ states.sensor.moonraker_sensor.attributes["heater_bed"]["temperature"]  | float | round(1) }}'
+        device_class: temperature
+        unit_of_measurement: "°C"
+        icon_template: mdi:thermometer
+      moonraker_bed_power:
+        friendly_name: "Bed Power"
+        value_template: '{{ ((states.sensor.moonraker_sensor.attributes["heater_bed"]["power"]  | float) * 100) | round(0) }}'
+        unit_of_measurement: "%"
+        icon_template: mdi:flash
+      moonraker_status:
+        friendly_name: "Printer Status"
+        value_template: >
+          {% set val =  states('sensor.moonraker_state')  %}
+          {% if val == 'standby' %}ideal
+          {% elif val == 'complete' %}finished
+          {% elif val == 'unavailable' %}offline
+          {% else %}{{val}}
+          {% endif %}
+        icon_template: >
+          {% set val =  states('sensor.moonraker_state')  %}
+          {% if val == 'standby' %}mdi:printer
+          {% elif val == 'error' %}mdi:printer-alert
+          {% elif val == 'printing' %}mdi:printer-3d-nozzle
+          {% elif val == 'paused' %}mdi:pause-circle
+          {% elif val == 'complete' %}mdi:printer-check
+          {% else %}mdi:printer-off
+          {% endif %}
+      moonraker_state:
+        friendly_name: "Printer State"
+        value_template: '{{ states.sensor.moonraker_sensor.attributes["print_stats"]["state"]}}'
+        icon_template: mdi:information-outline
+      moonraker_current_print:
+        friendly_name: "Current Print"
+        value_template: '{{ states.sensor.moonraker_sensor.attributes["print_stats"]["filename"]}}'
+      moonraker_current_progress:
+        friendly_name: "Progress"
+        value_template: '{{ ((states.sensor.moonraker_sensor.attributes["display_status"]["progress"])*100) | round(0, "floor") }}'
+        unit_of_measurement: "%"
+        icon_template: mdi:progress-clock
+      moonraker_print_time:
+        friendly_name: "Time Elapsed"
+        value_template: '{{ states.sensor.moonraker_sensor.attributes["print_stats"]["print_duration"] |timestamp_custom("%H:%M:%S", 0)}}'
+        icon_template: mdi:camera-timer
+      moonraker_time_remaining:
+        friendly_name: "Time Remaining"
+        value_template: '{{ (((states.sensor.moonraker_sensor.attributes["print_stats"]["print_duration"]/states.sensor.moonraker_sensor.attributes["display_status"]["progress"]- states.sensor.moonraker_sensor.attributes["print_stats"]["print_duration"]) if states.sensor.moonraker_sensor.attributes["display_status"]["progress"]>0 else 0)) | timestamp_custom("%H:%M:%S", 0)}}'
+        icon_template: mdi:timer-sand
+      moonraker_eta:
+        friendly_name: "ETA"
+        value_template: '{{ (as_timestamp(now())+2*60*60+((states.sensor.moonraker_sensor.attributes["print_stats"]["print_duration"]/states.sensor.moonraker_sensor.attributes["display_status"]["progress"]- states.sensor.moonraker_sensor.attributes["print_stats"]["print_duration"]) if states.sensor.moonraker_sensor.attributes["display_status"]["progress"]>0 else 0)) | timestamp_custom("%H:%M:%S", 0)}}'
+        icon_template: mdi:av-timer
+      moonraker_message:
+        friendly_name: "Message"
+        value_template: '{{ states.sensor.moonraker_sensor.attributes["display_status"]["message"]}}'
+      moonraker_layer_height:
+        friendly_name: "Layer Height"
+        value_template: '{{ states.sensor.moonraker_print_data.attributes["layer_height"] | float }}'
+        unit_of_measurement: "mm"
+        icon_template: mdi:arrow-collapse-down
+      moonraker_object_height:
+        friendly_name: "Object Height"
+        value_template: '{{ states.sensor.moonraker_print_data.attributes["object_height"] | float }}'
+        unit_of_measurement: "mm"
+        icon_template: mdi:arrow-expand-vertical
+      moonraker_total_layers:
+        friendly_name: "Total Layers"
+        value_template: '{{ states.sensor.moonraker_print_data.attributes["layer_count"] | int }}'
+        unit_of_measurement: "mm"
+        icon_template: mdi:arrow-collapse-down
+      moonraker_current_layer:
+        friendly_name: "Current Layer"
+        value_template: >
+          {% set TOTAL_LAYER = (states.sensor.moonraker_print_data.attributes["layer_count"] | int)  %}
+          {% set LAYER_HEIGHT = (states.sensor.moonraker_print_data.attributes["layer_height"] | float) %}
+          {% set CURRENT_HEIGHT = states.sensor.moonraker_sensor.attributes["gcode_move"]["position"][2] %}
+          {% set CURRENT_LAYER = ((CURRENT_HEIGHT / LAYER_HEIGHT) | int) %}
+          {{ CURRENT_LAYER if CURRENT_LAYER <= TOTAL_LAYER else TOTAL_LAYER }}
+      moonraker_state_message:
+        friendly_name: "State Message"
+        value_template: '{{ states.sensor.moonraker_info.attributes["state_message"] }}'
+
+# When you have filament detection (not tested)
+#binary_sensor:
+#  - platform: template
+#    sensors:
+#      moonraker_filament:
+#        friendly_name: "Filament Detected"
+#        icon_template: mdi:printer-3d-nozzle-alert
+#        device_class: motion
+#        value_template: >-
+#          {{ states.sensor.moonraker_sensor.attributes["filament_switch_sensor Filament"]["filament_detected"] }}
+
+automation:
+  - alias: "3D Printer - Update RESTful Sensors"
+    description: ""
+    trigger:
+      - platform: state
+        entity_id:
+          - switch.3dprinter
+        from: "off"
+        to: "on"
+    condition: []
+    action:
+      - repeat:
+          until:
+            - condition: state
+              entity_id: switch.3dprinter
+              state: "off"
+          sequence:
+            - service: homeassistant.update_entity
+              data: {}
+              target:
+                entity_id:
+                  - sensor.moonraker_info
+                  - sensor.moonraker_sensor
+                  - sensor.moonraker_metadata
+            - delay:
+                hours: 0
+                minutes: 0
+                seconds: 1
+                milliseconds: 0
+    mode: single
+
+  - alias: "3D Printer - Finished"
+    description: ""
+    trigger:
+      - platform: state
+        entity_id:
+          - sensor.moonraker_status
+        to: finished
+        for:
+          hours: 0
+          minutes: 1
+          seconds: 0
+    condition: []
+    action:
+      - service: notify.devices
+        data:
+          message: Finished!
+          title: 3D Printer
+      - service: script.safe_shutdown
+        data: {}
+        enabled: true
+    mode: single
+
+script:
+  - alias: "3D Printer - safety shutdown"
+    sequence:
+      - service: rest_command.moonraker_shutdown
+        data: {}
+      - wait_template: "{{ is_state('sensor.moonraker_status', 'offline') }}"
+      - service: switch.turn_off
+        data: {}
+        target:
+          entity_id:
+            - switch.3dprinter
+    mode: single
+    icon: mdi:security
