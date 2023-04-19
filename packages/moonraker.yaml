@@ -239,5 +239,17 @@ script:
         target:
           entity_id:
             - switch.3dprinter
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        data: {}
+        target:
+          entity_id:
+            - sensor.ratrig_info
+            - sensor.ratrig_sensor
+            - sensor.ratrig_metadata
     mode: single
     icon: mdi:security
