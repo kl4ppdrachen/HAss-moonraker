@@ -2,6 +2,8 @@
 
 It provides a RESTful sensor for Moonraker states, RESTful commands, some automation for safety shutdown, emergency shutdown, notification when finished, control and automation that does not flood the Home Assistant logs when Moonraker is offline.
 
+You can also use the HACS-Integration "Moonraker" from marcolivierarsenault: https://github.com/marcolivierarsenault/moonraker-home-assistant 
+
 ## What do you need?
 
 - Home Assistant
